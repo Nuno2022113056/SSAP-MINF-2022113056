@@ -1,1 +1,3 @@
-# SSAP-MINF-2022113056
+# Seminário de Sistemas e Aplicações
+
+Domínio: Ciência dos Dados e ecossistema R
