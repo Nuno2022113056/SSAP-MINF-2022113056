@@ -1,0 +1,189 @@
+---
+title: "O que explica a avaliação de filmes no IMDb?"
+subtitle: "Análise exploratória — Momento 3"
+author: "Nuno Silva (2022113056) · 2022113056@ufp.edu.pt"
+date: today
+lang: pt
+abstract: >
+  Este trabalho analisa, em R, os dados públicos do IMDb para perceber que
+  características de um filme estão associadas à sua avaliação. Esta fase (M3)
+  foca-se nos filmes e cobre a preparação dos dados, a análise exploratória e a
+  estratégia de modelação; as séries serão tratadas na fase seguinte.
+format:
+  html:
+    toc: true
+    toc-title: Índice
+    number-sections: true
+    theme: cosmo
+    code-fold: true
+    fig-align: center
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 4.5)
+```
+
+# Introdução
+
+Uma nota alta no IMDb reflete qualidade ou apenas popularidade? Este projeto
+usa os [IMDb Non-Commercial Datasets](https://developer.imdb.com/non-commercial-datasets/)
+para responder a três perguntas sobre **filmes**:
+
+1. Que características (género, duração, década, votos) explicam a nota média?
+2. Popularidade e qualidade estão relacionadas, e varia por género?
+3. Como evoluíram a duração e os géneros ao longo das décadas?
+
+**Âmbito desta fase:** o M3 trata apenas os filmes. As séries e a sua evolução
+por temporada (pergunta P2) ficam para a fase seguinte, por exigirem uma tabela
+adicional (`title.episode`) e uma preparação distinta.
+
+# Metodologia e dados
+
+Os dados são três ficheiros TSV do IMDb, ligados pelo identificador `tconst`. O
+dicionário completo está em `docs/dicionario-de-dados.md`. A preparação, feita em
+`scripts/02_preparar_dados.R`, aplica estas decisões:
+
+- junta `title.basics` com `title.ratings` e mantém apenas `titleType == "movie"`;
+- exige ano de lançamento conhecido (`startYear`);
+- mantém apenas filmes com **≥ 1000 votos**, para que a média seja estável;
+- deriva a `decada` e o `genero_principal` (primeiro género da lista).
+
+```{r dados}
+if (!file.exists("data/processed/filmes.rds"))
+  stop("Executa scripts/01_download_dados.R e scripts/02_preparar_dados.R primeiro.")
+
+filmes <- readRDS("data/processed/filmes.rds")
+```
+
+Dimensão do conjunto de análise e valores em falta:
+
+```{r resumo-dados}
+filmes |>
+  summarise(
+    filmes = n(),
+    intervalo_anos = str_c(min(startYear), "–", max(startYear)),
+    sem_duracao = sum(is.na(runtimeMinutes)),
+    sem_genero = sum(is.na(genero_principal))
+  ) |>
+  knitr::kable()
+```
+
+Os poucos filmes sem duração ou sem género são excluídos pontualmente nas
+análises que dependem dessas variáveis.
+
+# Estatística descritiva
+
+```{r descritiva}
+filmes |>
+  select(averageRating, runtimeMinutes, numVotes) |>
+  pivot_longer(everything(), names_to = "variavel", values_to = "valor") |>
+  group_by(variavel) |>
+  summarise(
+    media = mean(valor, na.rm = TRUE),
+    mediana = median(valor, na.rm = TRUE),
+    minimo = min(valor, na.rm = TRUE),
+    maximo = max(valor, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  knitr::kable(digits = 1)
+```
+
+# Análise exploratória
+
+## Distribuição das avaliações
+
+```{r viz-distribuicao}
+ggplot(filmes, aes(averageRating)) +
+  geom_histogram(binwidth = 0.5, fill = "#F5C518", color = "white") +
+  labs(title = "Distribuição das avaliações dos filmes",
+       x = "Avaliação média (IMDb)", y = "Número de filmes") +
+  theme_minimal()
+```
+
+As avaliações concentram-se em torno de 6–7, com uma cauda para notas baixas.
+
+## Duração média por década
+
+```{r viz-duracao}
+filmes |>
+  filter(!is.na(runtimeMinutes), runtimeMinutes >= 40, runtimeMinutes <= 240) |>
+  group_by(decada) |>
+  summarise(duracao_media = mean(runtimeMinutes), .groups = "drop") |>
+  ggplot(aes(decada, duracao_media)) +
+  geom_line(color = "#F5C518", linewidth = 1) +
+  geom_point(size = 1.8) +
+  labs(title = "Duração média dos filmes por década",
+       x = "Década", y = "Duração média (minutos)") +
+  theme_minimal()
+```
+
+A duração foi limitada a 40–240 minutos para esta vista, removendo registos
+implausíveis que distorceriam a média (tratamento de *outliers*).
+
+## Popularidade vs. avaliação, por género
+
+```{r viz-popularidade}
+top_generos <- filmes |>
+  filter(!is.na(genero_principal)) |>
+  count(genero_principal, sort = TRUE) |>
+  slice_head(n = 6) |>
+  pull(genero_principal)
+
+filmes |>
+  filter(genero_principal %in% top_generos) |>
+  ggplot(aes(numVotes, averageRating)) +
+  geom_point(alpha = 0.15, size = 0.5) +
+  scale_x_log10(labels = scales::comma) +
+  facet_wrap(~ genero_principal) +
+  labs(title = "Popularidade vs. avaliação, por género",
+       x = "Número de votos (escala logarítmica)", y = "Avaliação média") +
+  theme_minimal()
+```
+
+## Avaliação média por género
+
+```{r viz-genero}
+filmes |>
+  filter(!is.na(genero_principal)) |>
+  group_by(genero_principal) |>
+  summarise(nota_media = mean(averageRating), n = n(), .groups = "drop") |>
+  filter(n >= 200) |>
+  ggplot(aes(reorder(genero_principal, nota_media), nota_media)) +
+  geom_col(fill = "#F5C518") +
+  coord_flip() +
+  labs(title = "Avaliação média por género principal",
+       x = NULL, y = "Avaliação média") +
+  theme_minimal()
+```
+
+# Estratégia de modelação (fase seguinte)
+
+Para a pergunta P1, a estratégia é uma **regressão linear múltipla** com
+`averageRating` como variável-resposta e, como preditores, a duração, a década,
+o género principal (como fator) e o logaritmo do número de votos (distribuição
+muito enviesada). A avaliação do modelo usará o R², o erro (RMSE) e a análise de
+resíduos, com divisão treino/teste.
+
+Primeiro ajuste exploratório, apenas para ver a direção dos efeitos:
+
+```{r modelo-preliminar}
+modelo <- lm(averageRating ~ runtimeMinutes + decada + log10(numVotes),
+             data = filmes)
+summary(modelo)
+```
+
+# Conclusões e limitações preliminares
+
+- As avaliações do IMDb vêm de utilizadores auto-selecionados, o que introduz
+  enviesamento.
+- Ao exigir ≥ 1000 votos, excluem-se filmes de nicho — os resultados dizem
+  respeito a filmes com visibilidade.
+- O género foi simplificado para o primeiro da lista.
+- Correlação não implica causalidade: o modelo descreve associações, não causas.
+
+# Anexos
+
+Repositório: <https://github.com/><utilizador>/SSAP-MINF-2022113056
