@@ -10,6 +10,14 @@ abstract: >
   foca-se nos filmes e cobre a preparação dos dados, a análise exploratória e a
   estratégia de modelação; as séries serão tratadas na fase seguinte.
 format:
+  pdf:
+    toc: true
+    toc-title: Índice
+    number-sections: true
+    papersize: a4
+    geometry: margin=2.5cm
+    fig-align: center
+    fig-pos: "H"
   html:
     toc: true
     toc-title: Índice
@@ -17,6 +25,7 @@ format:
     theme: cosmo
     code-fold: true
     fig-align: center
+pdf-engine: xelatex
 ---
 
 ```{r setup}
