@@ -61,10 +61,18 @@ dicionário completo está em `docs/dicionario-de-dados.md`. A preparação, fei
 - deriva a `decada` e o `genero_principal` (primeiro género da lista).
 
 ```{r dados}
-if (!file.exists("data/processed/filmes.rds"))
-  stop("Executa scripts/01_download_dados.R e scripts/02_preparar_dados.R primeiro.")
+encontrar_dados <- function(caminho = file.path("data", "processed", "filmes.rds")) {
+  dir <- normalizePath(getwd(), winslash = "/")
+  for (i in 1:6) {
+    alvo <- file.path(dir, caminho)
+    if (file.exists(alvo)) return(alvo)
+    dir <- dirname(dir)
+  }
+  stop("Nao encontrei ", caminho, " a partir de ", getwd(),
+       ". Abre o projeto como RStudio Project e corre scripts/01 e scripts/02.")
+}
 
-filmes <- readRDS("data/processed/filmes.rds")
+filmes <- readRDS(encontrar_dados())
 ```
 
 Dimensão do conjunto de análise e valores em falta:
