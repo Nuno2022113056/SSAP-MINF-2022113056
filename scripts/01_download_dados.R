@@ -1,32 +1,17 @@
-# Pasta de destino
-destino_dir <- file.path("data", "raw")
-dir.create(destino_dir, recursive = TRUE, showWarnings = FALSE)
+# Descarrega os dados do IMDb para data/raw/
+# source("scripts/01_download_dados.R")
 
-# URL base e ficheiros a descarregar
+dir.create("data/raw", recursive = TRUE, showWarnings = FALSE)
+
 base_url <- "https://datasets.imdbws.com/"
+ficheiros <- c("title.basics.tsv.gz", "title.ratings.tsv.gz", "title.episode.tsv.gz")
 
-# Ficheiros centrais da analise
-ficheiros <- c(
-  "title.basics.tsv.gz",   # titulos: tipo, ano, duracao, generos
-  "title.ratings.tsv.gz",  # avaliacoes: nota media e n.o de votos
-  "title.episode.tsv.gz"   # ligacao episodio -> serie, temporada
-)
-
-# Os ficheiros sao grandes: aumentar o tempo-limite de download
 options(timeout = max(600, getOption("timeout")))
 
 for (f in ficheiros) {
-  destino <- file.path(destino_dir, f)
-  if (file.exists(destino)) {
-    message("Ja existe, a saltar: ", f)
-    next
-  }
-  message("A descarregar: ", f, " ...")
-  download.file(
-    url      = paste0(base_url, f),
-    destfile = destino,
-    mode     = "wb"   # binario (essencial em Windows)
-  )
+  destino <- file.path("data/raw", f)
+  if (file.exists(destino)) next
+  message("A descarregar: ", f)
+  download.file(paste0(base_url, f), destino, mode = "wb")
 }
-
-message("\nConcluido. Ficheiros disponiveis em: ", normalizePath(destino_dir))
+message("Concluido.")
